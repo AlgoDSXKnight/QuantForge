@@ -104,6 +104,7 @@ def update_user(
     user_id: int,
     updated_user: UserUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     user = db.get(User, user_id)
 
@@ -112,6 +113,11 @@ def update_user(
             status_code=404,
             detail="User not found",
         )
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not enough permissions",
+        )   
 
     user.username = updated_user.username
     user.email = updated_user.email
@@ -126,6 +132,7 @@ def update_user(
 def delete_user(
     user_id: int,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     user = db.get(User, user_id)
 
@@ -135,7 +142,15 @@ def delete_user(
             detail="User not found",
         )
 
+    if current_user.id != user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not enough permissions",
+        )
+
     db.delete(user)
     db.commit()
 
-    return {"message": "User deleted successfully"}
+    return {
+        "message": "User deleted successfully"
+    }
