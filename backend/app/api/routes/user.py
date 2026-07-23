@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from fastapi.security import OAuth2PasswordRequestForm
 
-from app.core.security import hash_password, verify_password
 from app.core.auth import create_access_token
+from app.core.dependencies import get_current_user
+from app.core.security import hash_password, verify_password
 from app.database.session import get_db
 from app.models.user import User
 from app.schemas.user import (
@@ -33,10 +35,13 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     return new_user
 
 @router.post("/login")
-def login(user: UserLogin, db: Session = Depends(get_db)):
+def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
     db_user = (
         db.query(User)
-        .filter(User.username == user.username)
+        .filter(User.username == form_data.username)
         .first()
     )
 
@@ -47,7 +52,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
         )
 
     if not verify_password(
-        user.password,
+        form_data.password,
         db_user.hashed_password,
     ):
         raise HTTPException(
@@ -65,12 +70,19 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     }
 
 @router.get("/", response_model=list[UserResponse])
-def get_users(db: Session = Depends(get_db)):
+def get_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     users = db.query(User).all()
     return users
 
+
 @router.get("/{user_id}", response_model=UserResponse)
-def get_user(user_id: int, db: Session = Depends(get_db)):
+def get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+):
     user = db.get(User, user_id)
 
     if user is None:
@@ -80,6 +92,7 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         )
 
     return user
+
 
 @router.put("/{user_id}", response_model=UserResponse)
 def update_user(
@@ -103,8 +116,12 @@ def update_user(
 
     return user
 
+
 @router.delete("/{user_id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+):
     user = db.get(User, user_id)
 
     if user is None:
