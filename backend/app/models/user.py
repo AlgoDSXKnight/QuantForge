@@ -1,6 +1,10 @@
 from datetime import datetime, UTC 
 from sqlalchemy import DateTime, Integer, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import (
+    Mapped,
+    mapped_column,
+    relationship,
+)
 
 from app.database.base import Base
 
@@ -35,4 +39,9 @@ class User(Base):
     DateTime(timezone=True),
     default=lambda: datetime.now(UTC),
     nullable=False,
-)
+    )
+
+    portfolios: Mapped[list["Portfolio"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
