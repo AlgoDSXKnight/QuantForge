@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 from app.api.routes.user import router as user_router
-
+from app.api.routes.portfolio import router as portfolio_router
 app = FastAPI()
 
 
@@ -13,3 +13,4 @@ def root():
 
 
 app.include_router(user_router)
+app.include_router(portfolio_router)
