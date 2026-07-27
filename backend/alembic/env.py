@@ -19,7 +19,11 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 from app.database.base import Base
+
+# Import all models so Alembic sees them
 from app.models.user import User
+from app.models.portfolio import Portfolio
+from app.models.transaction import Transaction
 
 target_metadata = Base.metadata
 
