@@ -42,6 +42,31 @@ def create_transaction(
             detail="Access denied",
         )
 
+    if transaction.transaction_type == "SELL":
+
+        transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.portfolio_id == transaction.portfolio_id,
+            Transaction.asset_name == transaction.asset_name,
+        )
+        .all()
+    )
+
+    current_quantity = 0
+
+    for t in transactions:
+
+        if t.transaction_type == "BUY":
+            current_quantity += t.quantity
+        else:
+            current_quantity -= t.quantity
+
+    if transaction.quantity > current_quantity:
+        raise HTTPException(
+            status_code=400,
+            detail="Not enough shares to sell",
+        )
     new_transaction = Transaction(
         asset_name=transaction.asset_name,
         transaction_type=transaction.transaction_type,

@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from app.api.routes.user import router as user_router
 from app.api.routes.portfolio import router as portfolio_router
 from app.api.routes.transaction import router as transaction_router
+from app.api.routes.holding import router as holding_router
 app = FastAPI()
 
 
@@ -16,3 +17,4 @@ def root():
 app.include_router(user_router)
 app.include_router(portfolio_router)
 app.include_router(transaction_router)
+app.include_router(holding_router)
