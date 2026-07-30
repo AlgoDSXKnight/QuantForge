@@ -1,193 +1,102 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.core.dependencies import get_current_user
 from app.database.session import get_db
-from app.models.portfolio import Portfolio
-from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.transaction import (
     TransactionCreate,
     TransactionUpdate,
     TransactionResponse,
 )
+from app.services.transaction_service import (
+    create_transaction,
+    get_transactions,
+    get_transaction,
+    update_transaction,
+    delete_transaction,
+)
+
 router = APIRouter(
     prefix="/transactions",
     tags=["Transactions"],
 )
 
+
 @router.post(
     "/",
     response_model=TransactionResponse,
 )
-def create_transaction(
+def create_transaction_route(
     transaction: TransactionCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    portfolio = db.get(
-        Portfolio,
-        transaction.portfolio_id,
+    return create_transaction(
+        db=db,
+        transaction_data=transaction,
+        current_user=current_user,
     )
 
-    if portfolio is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Portfolio not found",
-        )
-
-    if portfolio.user_id != current_user.id:
-        raise HTTPException(
-            status_code=403,
-            detail="Access denied",
-        )
-
-    if transaction.transaction_type == "SELL":
-
-        transactions = (
-        db.query(Transaction)
-        .filter(
-            Transaction.portfolio_id == transaction.portfolio_id,
-            Transaction.asset_name == transaction.asset_name,
-        )
-        .all()
-    )
-
-    current_quantity = 0
-
-    for t in transactions:
-
-        if t.transaction_type == "BUY":
-            current_quantity += t.quantity
-        else:
-            current_quantity -= t.quantity
-
-    if transaction.quantity > current_quantity:
-        raise HTTPException(
-            status_code=400,
-            detail="Not enough shares to sell",
-        )
-    new_transaction = Transaction(
-        asset_name=transaction.asset_name,
-        transaction_type=transaction.transaction_type,
-        quantity=transaction.quantity,
-        price=transaction.price,
-        portfolio_id=transaction.portfolio_id,
-    )
-
-    db.add(new_transaction)
-    db.commit()
-    db.refresh(new_transaction)
-
-    return new_transaction
 
 @router.get(
     "/",
     response_model=list[TransactionResponse],
 )
-def get_transactions(
+def get_transactions_route(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return (
-        db.query(Transaction)
-        .join(Portfolio)
-        .filter(
-            Portfolio.user_id == current_user.id,
-        )
-        .all()
+    return get_transactions(
+        db=db,
+        current_user=current_user,
     )
+
 
 @router.get(
     "/{transaction_id}",
     response_model=TransactionResponse,
 )
-def get_transaction(
+def get_transaction_route(
     transaction_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    transaction = (
-        db.query(Transaction)
-        .join(Portfolio)
-        .filter(
-            Transaction.id == transaction_id,
-            Portfolio.user_id == current_user.id,
-        )
-        .first()
+    return get_transaction(
+        db=db,
+        transaction_id=transaction_id,
+        current_user=current_user,
     )
 
-    if transaction is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Transaction not found",
-        )
-
-    return transaction
 
 @router.put(
     "/{transaction_id}",
     response_model=TransactionResponse,
 )
-def update_transaction(
+def update_transaction_route(
     transaction_id: int,
     transaction_data: TransactionUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    transaction = (
-        db.query(Transaction)
-        .join(Portfolio)
-        .filter(
-            Transaction.id == transaction_id,
-            Portfolio.user_id == current_user.id,
-        )
-        .first()
+    return update_transaction(
+        db=db,
+        transaction_id=transaction_id,
+        transaction_data=transaction_data,
+        current_user=current_user,
     )
 
-    if transaction is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Transaction not found",
-        )
-
-    transaction.asset_name = transaction_data.asset_name
-    transaction.transaction_type = transaction_data.transaction_type
-    transaction.quantity = transaction_data.quantity
-    transaction.price = transaction_data.price
-
-    db.commit()
-    db.refresh(transaction)
-
-    return transaction
 
 @router.delete(
     "/{transaction_id}",
 )
-def delete_transaction(
+def delete_transaction_route(
     transaction_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    transaction = (
-        db.query(Transaction)
-        .join(Portfolio)
-        .filter(
-            Transaction.id == transaction_id,
-            Portfolio.user_id == current_user.id,
-        )
-        .first()
+    return delete_transaction(
+        db=db,
+        transaction_id=transaction_id,
+        current_user=current_user,
     )
-
-    if transaction is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Transaction not found",
-        )
-
-    db.delete(transaction)
-    db.commit()
-
-    return {
-        "message": "Transaction deleted successfully",
-    }
