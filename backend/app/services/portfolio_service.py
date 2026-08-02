@@ -113,3 +113,65 @@ def delete_portfolio(
     return {
         "message": "Portfolio deleted successfully",
     }
+
+from sqlalchemy import func
+from app.models.transaction import Transaction
+from app.schemas.portfolio import PortfolioSummary
+
+def get_portfolio_summary(
+    db: Session,
+    portfolio_id: int,
+    current_user: User,
+):
+    portfolio = db.get(
+        Portfolio,
+        portfolio_id,
+    )
+
+    if portfolio is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Portfolio not found",
+        )
+
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied",
+        )
+
+    total_transactions = (
+        db.query(func.count(Transaction.id))
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .scalar()
+    )
+
+    total_quantity = (
+        db.query(func.sum(Transaction.quantity))
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .scalar()
+    ) or 0
+
+    total_invested = (
+        db.query(
+            func.sum(
+                Transaction.quantity * Transaction.price
+            )
+        )
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .scalar()
+    ) or 0
+
+    return PortfolioSummary(
+        portfolio_name=portfolio.name,
+        total_transactions=total_transactions,
+        total_holdings=0,
+        total_quantity=total_quantity,
+        total_invested=total_invested,
+    )

@@ -17,3 +17,10 @@ class PortfolioResponse(BaseModel):
     model_config = {
         "from_attributes": True,
     }
+
+class PortfolioSummary(BaseModel):
+    portfolio_name: str
+    total_transactions: int
+    total_holdings: int
+    total_quantity: float
+    total_invested: float

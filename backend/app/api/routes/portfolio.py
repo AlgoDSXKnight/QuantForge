@@ -8,6 +8,7 @@ from app.schemas.portfolio import (
     PortfolioCreate,
     PortfolioUpdate,
     PortfolioResponse,
+    PortfolioSummary,
 )
 from app.services.portfolio_service import (
     create_portfolio,
@@ -15,6 +16,7 @@ from app.services.portfolio_service import (
     get_portfolio,
     update_portfolio,
     delete_portfolio,
+    get_portfolio_summary,
 )
 
 router = APIRouter(
@@ -52,6 +54,20 @@ def get_portfolios_route(
         current_user=current_user,
     )
 
+@router.get(
+    "/{portfolio_id}/summary",
+    response_model=PortfolioSummary,
+)
+def get_portfolio_summary_route(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_portfolio_summary(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
+    )
 
 @router.get(
     "/{portfolio_id}",
