@@ -148,6 +148,18 @@ def get_portfolio_summary(
         .scalar()
     )
 
+    total_holdings = (
+    db.query(
+        func.count(
+            func.distinct(Transaction.asset_name)
+        )
+    )
+    .filter(
+        Transaction.portfolio_id == portfolio_id,
+    )
+    .scalar() 
+     ) or 0
+
     total_quantity = (
         db.query(func.sum(Transaction.quantity))
         .filter(
@@ -171,7 +183,7 @@ def get_portfolio_summary(
     return PortfolioSummary(
         portfolio_name=portfolio.name,
         total_transactions=total_transactions,
-        total_holdings=0,
+        total_holdings=total_holdings,
         total_quantity=total_quantity,
         total_invested=total_invested,
     )
