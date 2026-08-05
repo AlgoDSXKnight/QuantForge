@@ -7,6 +7,7 @@ from app.models.transaction import Transaction
 from app.models.portfolio import Portfolio
 from app.models.user import User
 from app.schemas.holding import HoldingResponse
+from app.services.market_service import get_current_price
 
 router = APIRouter(
     prefix="/holdings",
@@ -51,16 +52,42 @@ def get_holdings(
             holdings[asset]["quantity"] -= transaction.quantity
 
     return [
-        HoldingResponse(
-            asset_name=asset,
-            quantity=data["quantity"],
-            invested_amount=data["invested_amount"],
-            average_buy_price=(
-                data["invested_amount"] / data["quantity"]
-                if data["quantity"] > 0
-                else 0
-            ),
+       HoldingResponse(
+    asset_name=asset,
+    quantity=data["quantity"],
+
+    average_buy_price=(
+        data["invested_amount"] / data["quantity"]
+        if data["quantity"] > 0
+        else 0
+    ),
+
+    invested_amount=data["invested_amount"],
+
+    current_price=get_current_price(asset),
+
+    current_value=(
+        data["quantity"] * get_current_price(asset)
+    ),
+
+    profit_loss=(
+        data["quantity"] * get_current_price(asset)
+        - data["invested_amount"]
+    ),
+
+    profit_loss_percent=(
+        (
+            (
+                data["quantity"] * get_current_price(asset)
+                - data["invested_amount"]
+            )
+            / data["invested_amount"]
         )
+        * 100
+        if data["invested_amount"] > 0
+        else 0
+    ),
+)
         for asset, data in holdings.items()
         if data["quantity"] > 0
     ]
