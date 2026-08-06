@@ -24,3 +24,12 @@ class PortfolioSummary(BaseModel):
     total_holdings: int
     total_quantity: float
     total_invested: float
+
+class PortfolioPerformance(BaseModel):
+    portfolio_name: str
+
+    invested: float
+    current_value: float
+
+    profit_loss: float
+    profit_loss_percent: float

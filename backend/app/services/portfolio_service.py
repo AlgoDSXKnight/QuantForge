@@ -8,6 +8,11 @@ from app.schemas.portfolio import (
     PortfolioUpdate,
 )
 
+from sqlalchemy import func
+from app.models.transaction import Transaction
+from app.schemas.portfolio import PortfolioSummary
+from app.schemas.portfolio import PortfolioPerformance
+from app.services.market_service import get_current_price
 
 def create_portfolio(
     db: Session,
@@ -114,9 +119,7 @@ def delete_portfolio(
         "message": "Portfolio deleted successfully",
     }
 
-from sqlalchemy import func
-from app.models.transaction import Transaction
-from app.schemas.portfolio import PortfolioSummary
+
 
 def get_portfolio_summary(
     db: Session,
@@ -186,4 +189,89 @@ def get_portfolio_summary(
         total_holdings=total_holdings,
         total_quantity=total_quantity,
         total_invested=total_invested,
+    )
+
+def get_portfolio_performance(
+    db: Session,
+    portfolio_id: int,
+    current_user: User,
+):
+    portfolio = db.get(
+        Portfolio,
+        portfolio_id,
+    )
+
+    if portfolio is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Portfolio not found",
+        )
+
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied",
+        )
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .all()
+    )
+
+    holdings = {}
+
+    for transaction in transactions:
+
+        asset = transaction.asset_name
+
+        if asset not in holdings:
+            holdings[asset] = {
+                "quantity": 0,
+                "invested": 0,
+            }
+
+        if transaction.transaction_type == "BUY":
+            holdings[asset]["quantity"] += transaction.quantity
+            holdings[asset]["invested"] += (
+                transaction.quantity * transaction.price
+            )
+
+        else:
+            holdings[asset]["quantity"] -= transaction.quantity
+            holdings[asset]["invested"] -= (
+                transaction.quantity * transaction.price
+            )
+
+    invested = 0
+    current_value = 0
+
+    for asset, data in holdings.items():
+
+        if data["quantity"] <= 0:
+            continue
+
+        invested += data["invested"]
+
+        current_value += (
+            data["quantity"]
+            * get_current_price(asset)
+        )
+
+    profit_loss = current_value - invested
+
+    profit_loss_percent = (
+        (profit_loss / invested) * 100
+        if invested > 0
+        else 0
+    )
+
+    return PortfolioPerformance(
+        portfolio_name=portfolio.name,
+        invested=invested,
+        current_value=current_value,
+        profit_loss=profit_loss,
+        profit_loss_percent=profit_loss_percent,
     )
