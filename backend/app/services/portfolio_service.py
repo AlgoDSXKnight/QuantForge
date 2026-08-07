@@ -14,6 +14,7 @@ from app.schemas.portfolio import PortfolioSummary
 from app.schemas.portfolio import PortfolioPerformance
 from app.services.market_service import get_current_price
 from app.schemas.portfolio import AssetAllocation
+from app.schemas.portfolio import PortfolioHistory
 
 def create_portfolio(
     db: Session,
@@ -355,3 +356,55 @@ def get_portfolio_allocation(
         )
 
     return allocation
+
+def get_portfolio_history(
+    db: Session,
+    portfolio_id: int,
+    current_user: User,
+):
+    portfolio = db.get(
+        Portfolio,
+        portfolio_id,
+    )
+
+    if portfolio is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Portfolio not found",
+        )
+
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied",
+        )
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .order_by(Transaction.transaction_date)
+        .all()
+    )
+
+    history = []
+
+    invested = 0
+
+    for transaction in transactions:
+
+        if transaction.transaction_type == "BUY":
+            invested += transaction.quantity * transaction.price
+        else:
+            invested -= transaction.quantity * transaction.price
+
+        history.append(
+            PortfolioHistory(
+                date=str(transaction.transaction_date),
+                invested=invested,
+                current_value=invested,
+            )
+        )
+
+    return history

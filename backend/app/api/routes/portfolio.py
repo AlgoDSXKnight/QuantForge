@@ -6,6 +6,7 @@ from app.database.session import get_db
 from app.models.user import User
 from app.schemas.portfolio import AssetAllocation
 from app.schemas.portfolio import PortfolioPerformance
+from app.schemas.portfolio import PortfolioHistory
 from app.services.portfolio_service import get_portfolio_performance
 from app.schemas.portfolio import (
     PortfolioCreate,
@@ -22,7 +23,8 @@ from app.services.portfolio_service import (
     delete_portfolio,
     get_portfolio_summary,
     get_portfolio_performance,
-    get_portfolio_allocation
+    get_portfolio_allocation,
+    get_portfolio_history,
 )
 
 
@@ -101,6 +103,21 @@ def get_portfolio_allocation_route(
     current_user: User = Depends(get_current_user),
 ):
     return get_portfolio_allocation(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
+    )
+
+@router.get(
+    "/{portfolio_id}/history",
+    response_model=list[PortfolioHistory],
+)
+def get_portfolio_history_route(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    return get_portfolio_history(
         db=db,
         portfolio_id=portfolio_id,
         current_user=current_user,

@@ -38,3 +38,8 @@ class AssetAllocation(BaseModel):
     asset_name: str
     current_value: float
     allocation_percent: float
+
+class PortfolioHistory(BaseModel):
+    date: str
+    invested: float
+    current_value: float
