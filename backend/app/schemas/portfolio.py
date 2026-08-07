@@ -33,3 +33,8 @@ class PortfolioPerformance(BaseModel):
 
     profit_loss: float
     profit_loss_percent: float
+
+class AssetAllocation(BaseModel):
+    asset_name: str
+    current_value: float
+    allocation_percent: float

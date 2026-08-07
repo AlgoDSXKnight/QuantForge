@@ -13,6 +13,7 @@ from app.models.transaction import Transaction
 from app.schemas.portfolio import PortfolioSummary
 from app.schemas.portfolio import PortfolioPerformance
 from app.services.market_service import get_current_price
+from app.schemas.portfolio import AssetAllocation
 
 def create_portfolio(
     db: Session,
@@ -275,3 +276,82 @@ def get_portfolio_performance(
         profit_loss=profit_loss,
         profit_loss_percent=profit_loss_percent,
     )
+
+
+
+def get_portfolio_allocation(
+    db: Session,
+    portfolio_id: int,
+    current_user: User,
+):
+    portfolio = db.get(
+        Portfolio,
+        portfolio_id,
+    )
+
+    if portfolio is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Portfolio not found",
+        )
+
+    if portfolio.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied",
+        )
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .all()
+    )
+
+    holdings = {}
+
+    for transaction in transactions:
+
+        asset = transaction.asset_name
+
+        if asset not in holdings:
+            holdings[asset] = 0
+
+        if transaction.transaction_type == "BUY":
+            holdings[asset] += transaction.quantity
+        else:
+            holdings[asset] -= transaction.quantity
+
+    values = {}
+
+    total_value = 0
+
+    for asset, quantity in holdings.items():
+
+        if quantity <= 0:
+            continue
+
+        value = quantity * get_current_price(asset)
+
+        values[asset] = value
+
+        total_value += value
+
+    allocation = []
+
+    for asset, value in values.items():
+
+        allocation.append(
+            AssetAllocation(
+                asset_name=asset,
+                current_value=value,
+                allocation_percent=(
+                    value / total_value * 100
+                    if total_value > 0
+                    else 0
+                ),
+            )
+        )
+
+    return allocation
