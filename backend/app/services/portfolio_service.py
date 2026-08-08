@@ -1,20 +1,20 @@
+from sqlalchemy import func
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
 
+from app.core.exceptions import QuantForgeException
 from app.models.portfolio import Portfolio
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.schemas.portfolio import (
+    AssetAllocation,
     PortfolioCreate,
+    PortfolioHistory,
+    PortfolioPerformance,
+    PortfolioSummary,
     PortfolioUpdate,
 )
-
-from sqlalchemy import func
-from app.models.transaction import Transaction
-from app.schemas.portfolio import PortfolioSummary
-from app.schemas.portfolio import PortfolioPerformance
 from app.services.market_service import get_current_price
-from app.schemas.portfolio import AssetAllocation
-from app.schemas.portfolio import PortfolioHistory
+
 
 def create_portfolio(
     db: Session,
@@ -32,6 +32,7 @@ def create_portfolio(
 
     return portfolio
 
+
 def get_portfolios(
     db: Session,
     current_user: User,
@@ -43,6 +44,7 @@ def get_portfolios(
         )
         .all()
     )
+
 
 def get_portfolio(
     db: Session,
@@ -59,12 +61,13 @@ def get_portfolio(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     return portfolio
+
 
 def update_portfolio(
     db: Session,
@@ -82,9 +85,9 @@ def update_portfolio(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     portfolio.name = portfolio_data.name
@@ -93,6 +96,7 @@ def update_portfolio(
     db.refresh(portfolio)
 
     return portfolio
+
 
 def delete_portfolio(
     db: Session,
@@ -109,9 +113,9 @@ def delete_portfolio(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     db.delete(portfolio)
@@ -120,7 +124,6 @@ def delete_portfolio(
     return {
         "message": "Portfolio deleted successfully",
     }
-
 
 
 def get_portfolio_summary(
@@ -134,15 +137,15 @@ def get_portfolio_summary(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     if portfolio.user_id != current_user.id:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Access denied",
             status_code=403,
-            detail="Access denied",
         )
 
     total_transactions = (
@@ -151,32 +154,12 @@ def get_portfolio_summary(
             Transaction.portfolio_id == portfolio_id,
         )
         .scalar()
-    )
-
-    total_holdings = (
-    db.query(
-        func.count(
-            func.distinct(Transaction.asset_name)
-        )
-    )
-    .filter(
-        Transaction.portfolio_id == portfolio_id,
-    )
-    .scalar() 
-     ) or 0
-
-    total_quantity = (
-        db.query(func.sum(Transaction.quantity))
-        .filter(
-            Transaction.portfolio_id == portfolio_id,
-        )
-        .scalar()
     ) or 0
 
-    total_invested = (
+    total_holdings = (
         db.query(
-            func.sum(
-                Transaction.quantity * Transaction.price
+            func.count(
+                func.distinct(Transaction.asset_name)
             )
         )
         .filter(
@@ -185,6 +168,29 @@ def get_portfolio_summary(
         .scalar()
     ) or 0
 
+    total_quantity = 0
+    total_invested = 0
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .all()
+    )
+
+    for transaction in transactions:
+        transaction_value = (
+            transaction.quantity * transaction.price
+        )
+
+        if transaction.transaction_type == "BUY":
+            total_quantity += transaction.quantity
+            total_invested += transaction_value
+        else:
+            total_quantity -= transaction.quantity
+            total_invested -= transaction_value
+
     return PortfolioSummary(
         portfolio_name=portfolio.name,
         total_transactions=total_transactions,
@@ -192,6 +198,7 @@ def get_portfolio_summary(
         total_quantity=total_quantity,
         total_invested=total_invested,
     )
+
 
 def get_portfolio_performance(
     db: Session,
@@ -204,15 +211,15 @@ def get_portfolio_performance(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     if portfolio.user_id != current_user.id:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Access denied",
             status_code=403,
-            detail="Access denied",
         )
 
     transactions = (
@@ -226,7 +233,6 @@ def get_portfolio_performance(
     holdings = {}
 
     for transaction in transactions:
-
         asset = transaction.asset_name
 
         if asset not in holdings:
@@ -235,23 +241,21 @@ def get_portfolio_performance(
                 "invested": 0,
             }
 
+        transaction_value = (
+            transaction.quantity * transaction.price
+        )
+
         if transaction.transaction_type == "BUY":
             holdings[asset]["quantity"] += transaction.quantity
-            holdings[asset]["invested"] += (
-                transaction.quantity * transaction.price
-            )
-
+            holdings[asset]["invested"] += transaction_value
         else:
             holdings[asset]["quantity"] -= transaction.quantity
-            holdings[asset]["invested"] -= (
-                transaction.quantity * transaction.price
-            )
+            holdings[asset]["invested"] -= transaction_value
 
     invested = 0
     current_value = 0
 
     for asset, data in holdings.items():
-
         if data["quantity"] <= 0:
             continue
 
@@ -279,7 +283,6 @@ def get_portfolio_performance(
     )
 
 
-
 def get_portfolio_allocation(
     db: Session,
     portfolio_id: int,
@@ -291,15 +294,15 @@ def get_portfolio_allocation(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     if portfolio.user_id != current_user.id:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Access denied",
             status_code=403,
-            detail="Access denied",
         )
 
     transactions = (
@@ -313,7 +316,6 @@ def get_portfolio_allocation(
     holdings = {}
 
     for transaction in transactions:
-
         asset = transaction.asset_name
 
         if asset not in holdings:
@@ -325,24 +327,20 @@ def get_portfolio_allocation(
             holdings[asset] -= transaction.quantity
 
     values = {}
-
     total_value = 0
 
     for asset, quantity in holdings.items():
-
         if quantity <= 0:
             continue
 
         value = quantity * get_current_price(asset)
 
         values[asset] = value
-
         total_value += value
 
     allocation = []
 
     for asset, value in values.items():
-
         allocation.append(
             AssetAllocation(
                 asset_name=asset,
@@ -357,6 +355,7 @@ def get_portfolio_allocation(
 
     return allocation
 
+
 def get_portfolio_history(
     db: Session,
     portfolio_id: int,
@@ -368,15 +367,15 @@ def get_portfolio_history(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     if portfolio.user_id != current_user.id:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Access denied",
             status_code=403,
-            detail="Access denied",
         )
 
     transactions = (
@@ -393,11 +392,14 @@ def get_portfolio_history(
     invested = 0
 
     for transaction in transactions:
+        transaction_value = (
+            transaction.quantity * transaction.price
+        )
 
         if transaction.transaction_type == "BUY":
-            invested += transaction.quantity * transaction.price
+            invested += transaction_value
         else:
-            invested -= transaction.quantity * transaction.price
+            invested -= transaction_value
 
         history.append(
             PortfolioHistory(
@@ -408,3 +410,4 @@ def get_portfolio_history(
         )
 
     return history
+

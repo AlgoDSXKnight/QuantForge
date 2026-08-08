@@ -1,6 +1,6 @@
-from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from app.core.exceptions import QuantForgeException
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.models.user import User
@@ -19,15 +19,15 @@ def create_transaction(
     )
 
     if portfolio is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Portfolio not found",
             status_code=404,
-            detail="Portfolio not found",
         )
 
     if portfolio.user_id != current_user.id:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Access denied",
             status_code=403,
-            detail="Access denied",
         )
 
     new_transaction = Transaction(
@@ -43,6 +43,7 @@ def create_transaction(
     db.refresh(new_transaction)
 
     return new_transaction
+
 
 def get_transaction(
     db: Session,
@@ -60,12 +61,13 @@ def get_transaction(
     )
 
     if transaction is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Transaction not found",
             status_code=404,
-            detail="Transaction not found",
         )
 
     return transaction
+
 
 def get_transactions(
     db: Session,
@@ -79,6 +81,7 @@ def get_transactions(
         )
         .all()
     )
+
 
 def update_transaction(
     db: Session,
@@ -97,9 +100,9 @@ def update_transaction(
     )
 
     if transaction is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Transaction not found",
             status_code=404,
-            detail="Transaction not found",
         )
 
     transaction.asset_name = transaction_data.asset_name
@@ -111,6 +114,7 @@ def update_transaction(
     db.refresh(transaction)
 
     return transaction
+
 
 def delete_transaction(
     db: Session,
@@ -128,9 +132,9 @@ def delete_transaction(
     )
 
     if transaction is None:
-        raise HTTPException(
+        raise QuantForgeException(
+            message="Transaction not found",
             status_code=404,
-            detail="Transaction not found",
         )
 
     db.delete(transaction)

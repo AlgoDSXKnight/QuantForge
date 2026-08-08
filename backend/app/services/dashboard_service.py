@@ -41,18 +41,26 @@ def get_dashboard_summary(
         .scalar()
     ) or 0
 
-    total_invested = (
-        db.query(
-            func.sum(
-                Transaction.quantity * Transaction.price
-            )
-        )
+    transactions = (
+        db.query(Transaction)
         .join(Portfolio)
         .filter(
             Portfolio.user_id == current_user.id,
         )
-        .scalar()
-    ) or 0
+        .all()
+    )
+
+    total_invested = 0
+
+    for transaction in transactions:
+        if transaction.transaction_type == "BUY":
+            total_invested += (
+                transaction.quantity * transaction.price
+            )
+        else:
+            total_invested -= (
+                transaction.quantity * transaction.price
+            )
 
     return DashboardSummary(
         total_portfolios=total_portfolios,
@@ -60,3 +68,4 @@ def get_dashboard_summary(
         total_assets=total_assets,
         total_invested=total_invested,
     )
+
