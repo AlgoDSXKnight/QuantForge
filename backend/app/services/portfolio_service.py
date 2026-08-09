@@ -1,4 +1,3 @@
-from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import QuantForgeException
@@ -14,6 +13,10 @@ from app.schemas.portfolio import (
     PortfolioUpdate,
 )
 from app.services.market_service import get_current_price
+from app.services.portfolio_calculation_service import (
+    calculate_holdings,
+    calculate_portfolio_totals,
+)
 
 
 def create_portfolio(
@@ -148,55 +151,27 @@ def get_portfolio_summary(
             status_code=403,
         )
 
-    total_transactions = (
-        db.query(func.count(Transaction.id))
-        .filter(
-            Transaction.portfolio_id == portfolio_id,
-        )
-        .scalar()
-    ) or 0
-
-    total_holdings = (
-        db.query(
-            func.count(
-                func.distinct(Transaction.asset_name)
-            )
-        )
-        .filter(
-            Transaction.portfolio_id == portfolio_id,
-        )
-        .scalar()
-    ) or 0
-
-    total_quantity = 0
-    total_invested = 0
-
     transactions = (
         db.query(Transaction)
         .filter(
             Transaction.portfolio_id == portfolio_id,
         )
+        .order_by(Transaction.transaction_date)
         .all()
     )
 
-    for transaction in transactions:
-        transaction_value = (
-            transaction.quantity * transaction.price
-        )
+    holdings = calculate_holdings(transactions)
 
-        if transaction.transaction_type == "BUY":
-            total_quantity += transaction.quantity
-            total_invested += transaction_value
-        else:
-            total_quantity -= transaction.quantity
-            total_invested -= transaction_value
+    total_transactions = len(transactions)
+
+    totals = calculate_portfolio_totals(holdings)
 
     return PortfolioSummary(
         portfolio_name=portfolio.name,
         total_transactions=total_transactions,
-        total_holdings=total_holdings,
-        total_quantity=total_quantity,
-        total_invested=total_invested,
+        total_holdings=len(holdings),
+        total_quantity=totals["total_quantity"],
+        total_invested=totals["total_invested"],
     )
 
 
@@ -227,44 +202,27 @@ def get_portfolio_performance(
         .filter(
             Transaction.portfolio_id == portfolio_id,
         )
+        .order_by(Transaction.transaction_date)
         .all()
     )
 
-    holdings = {}
+    holdings = calculate_holdings(transactions)
 
-    for transaction in transactions:
-        asset = transaction.asset_name
-
-        if asset not in holdings:
-            holdings[asset] = {
-                "quantity": 0,
-                "invested": 0,
-            }
-
-        transaction_value = (
-            transaction.quantity * transaction.price
-        )
-
-        if transaction.transaction_type == "BUY":
-            holdings[asset]["quantity"] += transaction.quantity
-            holdings[asset]["invested"] += transaction_value
-        else:
-            holdings[asset]["quantity"] -= transaction.quantity
-            holdings[asset]["invested"] -= transaction_value
-
-    invested = 0
-    current_value = 0
+    invested = 0.0
+    current_value = 0.0
 
     for asset, data in holdings.items():
-        if data["quantity"] <= 0:
+        quantity = data["quantity"]
+        asset_invested = data["invested"]
+
+        if quantity <= 0:
             continue
 
-        invested += data["invested"]
+        invested += asset_invested
 
-        current_value += (
-            data["quantity"]
-            * get_current_price(asset)
-        )
+        current_price = get_current_price(asset)
+
+        current_value += quantity * current_price
 
     profit_loss = current_value - invested
 
@@ -288,22 +246,11 @@ def get_portfolio_allocation(
     portfolio_id: int,
     current_user: User,
 ):
-    portfolio = db.get(
-        Portfolio,
-        portfolio_id,
+    get_portfolio(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
     )
-
-    if portfolio is None:
-        raise QuantForgeException(
-            message="Portfolio not found",
-            status_code=404,
-        )
-
-    if portfolio.user_id != current_user.id:
-        raise QuantForgeException(
-            message="Access denied",
-            status_code=403,
-        )
 
     transactions = (
         db.query(Transaction)
@@ -313,27 +260,22 @@ def get_portfolio_allocation(
         .all()
     )
 
-    holdings = {}
-
-    for transaction in transactions:
-        asset = transaction.asset_name
-
-        if asset not in holdings:
-            holdings[asset] = 0
-
-        if transaction.transaction_type == "BUY":
-            holdings[asset] += transaction.quantity
-        else:
-            holdings[asset] -= transaction.quantity
+    holdings = calculate_holdings(transactions)
 
     values = {}
     total_value = 0
 
-    for asset, quantity in holdings.items():
+    for asset, data in holdings.items():
+        quantity = data["quantity"]
+
         if quantity <= 0:
             continue
 
-        value = quantity * get_current_price(asset)
+        asset = asset.upper()
+
+        current_price = get_current_price(asset)
+
+        value = quantity * current_price
 
         values[asset] = value
         total_value += value
@@ -361,22 +303,11 @@ def get_portfolio_history(
     portfolio_id: int,
     current_user: User,
 ):
-    portfolio = db.get(
-        Portfolio,
-        portfolio_id,
+    get_portfolio(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
     )
-
-    if portfolio is None:
-        raise QuantForgeException(
-            message="Portfolio not found",
-            status_code=404,
-        )
-
-    if portfolio.user_id != current_user.id:
-        raise QuantForgeException(
-            message="Access denied",
-            status_code=403,
-        )
 
     transactions = (
         db.query(Transaction)
@@ -396,9 +327,14 @@ def get_portfolio_history(
             transaction.quantity * transaction.price
         )
 
-        if transaction.transaction_type == "BUY":
+        transaction_type = (
+            transaction.transaction_type.upper()
+        )
+
+        if transaction_type == "BUY":
             invested += transaction_value
-        else:
+
+        elif transaction_type == "SELL":
             invested -= transaction_value
 
         history.append(
@@ -410,4 +346,3 @@ def get_portfolio_history(
         )
 
     return history
-
