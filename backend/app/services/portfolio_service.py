@@ -11,6 +11,7 @@ from app.schemas.portfolio import (
     PortfolioPerformance,
     PortfolioSummary,
     PortfolioUpdate,
+    PortfolioHolding,
 )
 from app.services.market_service import get_current_price
 from app.services.portfolio_calculation_service import (
@@ -174,6 +175,54 @@ def get_portfolio_summary(
         total_invested=totals["total_invested"],
     )
 
+def get_portfolio_holdings(
+    db: Session,
+    portfolio_id: int,
+    current_user: User,
+):
+    portfolio = db.get(
+        Portfolio,
+        portfolio_id,
+    )
+
+    if portfolio is None:
+        raise QuantForgeException(
+            message="Portfolio not found",
+            status_code=404,
+        )
+
+    if portfolio.user_id != current_user.id:
+        raise QuantForgeException(
+            message="Access denied",
+            status_code=403,
+        )
+
+    transactions = (
+        db.query(Transaction)
+        .filter(
+            Transaction.portfolio_id == portfolio_id,
+        )
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
+        .all()
+    )
+
+    holdings = calculate_holdings(transactions)
+
+    result = []
+
+    for asset, data in holdings.items():
+        result.append(
+            PortfolioHolding(
+                asset_name=asset,
+                quantity=data["quantity"],
+                invested=data["invested"],
+            )
+        )
+
+    return result
 
 def get_portfolio_performance(
     db: Session,

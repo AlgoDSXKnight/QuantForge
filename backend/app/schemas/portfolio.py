@@ -55,3 +55,8 @@ class PortfolioHistory(BaseModel):
     date: str
     invested: float
     current_value: float
+
+class PortfolioHolding(BaseModel):
+    asset_name: str
+    quantity: float
+    invested: float
