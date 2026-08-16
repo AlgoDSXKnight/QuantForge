@@ -29,16 +29,8 @@ def calculate_holdings(
     )
 
     for transaction in transactions:
-
-        print(
-    "CALC DEBUG:",
-    "id=", transaction.id,
-    "asset=", repr(transaction.asset_name),
-    "type=", repr(transaction.transaction_type),
-    "quantity=", transaction.quantity,
-    "price=", transaction.price,
-)
         asset = str(transaction.asset_name).strip().upper()
+
         transaction_type = str(
             transaction.transaction_type
         ).strip().upper()
@@ -93,7 +85,7 @@ def calculate_holdings(
                 f"{transaction_type}"
             )
 
-    # Convert defaultdict → normal dict.
+    # Convert defaultdict to normal dict.
     #
     # Also make sure every value is a normal dictionary,
     # not a tuple or SQLAlchemy Row object.
@@ -111,8 +103,7 @@ def calculate_holdings(
             "quantity": quantity,
             "invested": invested,
         }
-        
-    print("CALC RESULT:", result)
+
     return result
 
 
