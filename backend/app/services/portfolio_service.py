@@ -157,7 +157,10 @@ def get_portfolio_summary(
         .filter(
             Transaction.portfolio_id == portfolio_id,
         )
-        .order_by(Transaction.transaction_date)
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
         .all()
     )
 
@@ -251,7 +254,10 @@ def get_portfolio_performance(
         .filter(
             Transaction.portfolio_id == portfolio_id,
         )
-        .order_by(Transaction.transaction_date)
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
         .all()
     )
 
@@ -363,7 +369,10 @@ def get_portfolio_history(
         .filter(
             Transaction.portfolio_id == portfolio_id,
         )
-        .order_by(Transaction.transaction_date)
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
         .all()
     )
 

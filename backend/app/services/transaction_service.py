@@ -43,7 +43,10 @@ def create_transaction(
                 Transaction.portfolio_id
                 == transaction_data.portfolio_id
             )
-            .order_by(Transaction.transaction_date)
+            .order_by(
+                Transaction.transaction_date,
+                Transaction.id,
+            )
             .all()
         )
 
@@ -250,7 +253,10 @@ def delete_transaction(
             Transaction.portfolio_id
             == transaction.portfolio_id
         )
-        .order_by(Transaction.transaction_date)
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
         .all()
     )
 

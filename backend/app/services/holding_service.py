@@ -36,7 +36,10 @@ def get_holdings(
         .filter(
             Transaction.portfolio_id == portfolio_id,
         )
-        .order_by(Transaction.transaction_date)
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
         .all()
     )
 
