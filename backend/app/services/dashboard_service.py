@@ -4,21 +4,21 @@ from sqlalchemy.orm import Session
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.schemas.holding import HoldingResponse
 from app.schemas.dashboard import (
     DashboardSummary,
     PortfolioPerformanceSummary,
     RecentTransaction,
 )
-
-from app.services.holding_service import get_holdings
+from app.schemas.holding import HoldingResponse
+from app.services.market_service import get_current_price
+from app.services.portfolio_calculation_service import calculate_holdings
 from app.services.portfolio_service import get_portfolio_performance
 
 
 def get_dashboard_summary(
     db: Session,
     current_user: User,
-):
+) -> DashboardSummary:
     # =========================================================
     # 1. TOTAL PORTFOLIOS
     # =========================================================
@@ -71,6 +71,10 @@ def get_dashboard_summary(
         .filter(
             Portfolio.user_id == current_user.id,
         )
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
         .all()
     )
 
@@ -105,24 +109,58 @@ def get_dashboard_summary(
     )
 
     # =========================================================
-    # 7. GET AND COMBINE HOLDINGS FROM ALL PORTFOLIOS
+    # 7. GROUP TRANSACTIONS BY PORTFOLIO
     # =========================================================
 
-    holdings_by_asset = {}
+    transactions_by_portfolio: dict[
+        int,
+        list[Transaction],
+    ] = {}
+
+    for transaction in transactions:
+
+        portfolio_id = transaction.portfolio_id
+
+        transactions_by_portfolio.setdefault(
+            portfolio_id,
+            [],
+        ).append(transaction)
+
+    # =========================================================
+    # 8. CALCULATE AND COMBINE HOLDINGS
+    # =========================================================
+
+    holdings_by_asset: dict[
+        str,
+        dict[str, float],
+    ] = {}
 
     for portfolio in portfolios:
 
-        portfolio_holdings = get_holdings(
-            db=db,
-            portfolio_id=portfolio.id,
-            current_user=current_user,
+        portfolio_transactions = (
+            transactions_by_portfolio.get(
+                portfolio.id,
+                [],
+            )
         )
 
-        for holding in portfolio_holdings:
+        portfolio_holdings = calculate_holdings(
+            portfolio_transactions
+        )
 
-            asset = holding.asset_name.upper()
+        for asset, data in portfolio_holdings.items():
+
+            quantity = data["quantity"]
+            invested = data["invested"]
+
+            current_price = get_current_price(asset)
+
+            current_value = (
+                quantity * current_price
+            )
 
             if asset not in holdings_by_asset:
+
                 holdings_by_asset[asset] = {
                     "quantity": 0.0,
                     "invested": 0.0,
@@ -130,22 +168,22 @@ def get_dashboard_summary(
                 }
 
             holdings_by_asset[asset]["quantity"] += (
-                holding.quantity
+                quantity
             )
 
             holdings_by_asset[asset]["invested"] += (
-                holding.invested
+                invested
             )
 
             holdings_by_asset[asset]["current_value"] += (
-                holding.current_value
+                current_value
             )
 
     # =========================================================
-    # 8. BUILD COMBINED HOLDINGS
+    # 9. BUILD COMBINED HOLDINGS
     # =========================================================
 
-    all_holdings = []
+    all_holdings: list[HoldingResponse] = []
 
     for asset, data in holdings_by_asset.items():
 
@@ -188,9 +226,8 @@ def get_dashboard_summary(
             )
         )
 
-
     # =========================================================
-    # 8. CURRENT VALUE
+    # 10. CURRENT VALUE
     # =========================================================
 
     current_value = sum(
@@ -199,7 +236,7 @@ def get_dashboard_summary(
     )
 
     # =========================================================
-    # 9. PROFIT / LOSS
+    # 11. PROFIT / LOSS
     # =========================================================
 
     profit_loss = (
@@ -207,7 +244,7 @@ def get_dashboard_summary(
     )
 
     # =========================================================
-    # 10. PROFIT / LOSS %
+    # 12. PROFIT / LOSS %
     # =========================================================
 
     profit_loss_percent = (
@@ -217,7 +254,7 @@ def get_dashboard_summary(
     )
 
     # =========================================================
-    # 11. RECENT TRANSACTIONS
+    # 13. RECENT TRANSACTIONS
     # =========================================================
 
     recent_transactions = (
@@ -227,7 +264,8 @@ def get_dashboard_summary(
             Portfolio.user_id == current_user.id,
         )
         .order_by(
-            Transaction.transaction_date.desc()
+            Transaction.transaction_date.desc(),
+            Transaction.id.desc(),
         )
         .limit(5)
         .all()
@@ -239,19 +277,17 @@ def get_dashboard_summary(
     ]
 
     # =========================================================
-    # 12. RETURN DASHBOARD
+    # 14. RETURN DASHBOARD
     # =========================================================
 
     return DashboardSummary(
         total_portfolios=total_portfolios,
         total_transactions=total_transactions,
         total_assets=total_assets,
-
         total_invested=total_invested,
         current_value=current_value,
         profit_loss=profit_loss,
         profit_loss_percent=profit_loss_percent,
-
         holdings=all_holdings,
         recent_transactions=recent_transaction_response,
     )
@@ -260,9 +296,9 @@ def get_dashboard_summary(
 def get_portfolio_performance_summary(
     db: Session,
     current_user: User,
-):
+) -> list[PortfolioPerformanceSummary]:
     # =========================================================
-    # GET ALL USER PORTFOLIOS
+    # 1. GET ALL USER PORTFOLIOS
     # =========================================================
 
     portfolios = (
@@ -273,11 +309,11 @@ def get_portfolio_performance_summary(
         .all()
     )
 
-    result = []
+    # =========================================================
+    # 2. CALCULATE PERFORMANCE FOR EACH PORTFOLIO
+    # =========================================================
 
-    # =========================================================
-    # CALCULATE PERFORMANCE FOR EACH PORTFOLIO
-    # =========================================================
+    result: list[PortfolioPerformanceSummary] = []
 
     for portfolio in portfolios:
 
@@ -291,7 +327,6 @@ def get_portfolio_performance_summary(
             PortfolioPerformanceSummary(
                 portfolio_id=portfolio.id,
                 portfolio_name=portfolio.name,
-
                 invested=performance.invested,
                 current_value=performance.current_value,
                 profit_loss=performance.profit_loss,
