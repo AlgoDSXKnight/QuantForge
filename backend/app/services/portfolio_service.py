@@ -19,6 +19,29 @@ from app.services.portfolio_calculation_service import (
     calculate_portfolio_totals,
 )
 
+def _get_user_portfolio(
+    db: Session,
+    portfolio_id: int,
+    current_user: User,
+) -> Portfolio:
+    portfolio = db.get(
+        Portfolio,
+        portfolio_id,
+    )
+
+    if portfolio is None:
+        raise QuantForgeException(
+            message="Portfolio not found",
+            status_code=404,
+        )
+
+    if portfolio.user_id != current_user.id:
+        raise QuantForgeException(
+            message="Access denied",
+            status_code=403,
+        )
+
+    return portfolio
 
 def create_portfolio(
     db: Session,
@@ -135,22 +158,11 @@ def get_portfolio_summary(
     portfolio_id: int,
     current_user: User,
 ):
-    portfolio = db.get(
-        Portfolio,
-        portfolio_id,
+    portfolio = _get_user_portfolio(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
     )
-
-    if portfolio is None:
-        raise QuantForgeException(
-            message="Portfolio not found",
-            status_code=404,
-        )
-
-    if portfolio.user_id != current_user.id:
-        raise QuantForgeException(
-            message="Access denied",
-            status_code=403,
-        )
 
     transactions = (
         db.query(Transaction)
@@ -183,22 +195,11 @@ def get_portfolio_holdings(
     portfolio_id: int,
     current_user: User,
 ):
-    portfolio = db.get(
-        Portfolio,
-        portfolio_id,
+    portfolio = _get_user_portfolio(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
     )
-
-    if portfolio is None:
-        raise QuantForgeException(
-            message="Portfolio not found",
-            status_code=404,
-        )
-
-    if portfolio.user_id != current_user.id:
-        raise QuantForgeException(
-            message="Access denied",
-            status_code=403,
-        )
 
     transactions = (
         db.query(Transaction)
@@ -232,22 +233,11 @@ def get_portfolio_performance(
     portfolio_id: int,
     current_user: User,
 ):
-    portfolio = db.get(
-        Portfolio,
-        portfolio_id,
+    portfolio = _get_user_portfolio(
+        db=db,
+        portfolio_id=portfolio_id,
+        current_user=current_user,
     )
-
-    if portfolio is None:
-        raise QuantForgeException(
-            message="Portfolio not found",
-            status_code=404,
-        )
-
-    if portfolio.user_id != current_user.id:
-        raise QuantForgeException(
-            message="Access denied",
-            status_code=403,
-        )
 
     transactions = (
         db.query(Transaction)
@@ -301,7 +291,7 @@ def get_portfolio_allocation(
     portfolio_id: int,
     current_user: User,
 ):
-    get_portfolio(
+    _get_user_portfolio(
         db=db,
         portfolio_id=portfolio_id,
         current_user=current_user,
@@ -358,7 +348,7 @@ def get_portfolio_history(
     portfolio_id: int,
     current_user: User,
 ):
-    get_portfolio(
+    _get_user_portfolio(
         db=db,
         portfolio_id=portfolio_id,
         current_user=current_user,
