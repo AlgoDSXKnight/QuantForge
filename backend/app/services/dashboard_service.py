@@ -79,25 +79,7 @@ def get_dashboard_summary(
     )
 
     # =========================================================
-    # 5. TOTAL INVESTED
-    # =========================================================
-
-    total_invested = 0.0
-
-    for transaction in transactions:
-
-        transaction_value = (
-            transaction.quantity * transaction.price
-        )
-
-        if transaction.transaction_type == "BUY":
-            total_invested += transaction_value
-
-        elif transaction.transaction_type == "SELL":
-            total_invested -= transaction_value
-
-    # =========================================================
-    # 6. GET ALL USER PORTFOLIOS
+    # 5. GET ALL USER PORTFOLIOS
     # =========================================================
 
     portfolios = (
@@ -109,7 +91,7 @@ def get_dashboard_summary(
     )
 
     # =========================================================
-    # 7. GROUP TRANSACTIONS BY PORTFOLIO
+    # 6. GROUP TRANSACTIONS BY PORTFOLIO
     # =========================================================
 
     transactions_by_portfolio: dict[
@@ -127,7 +109,7 @@ def get_dashboard_summary(
         ).append(transaction)
 
     # =========================================================
-    # 8. CALCULATE AND COMBINE HOLDINGS
+    # 7. CALCULATE AND COMBINE HOLDINGS
     # =========================================================
 
     holdings_by_asset: dict[
@@ -180,7 +162,7 @@ def get_dashboard_summary(
             )
 
     # =========================================================
-    # 9. BUILD COMBINED HOLDINGS
+    # 8. BUILD COMBINED HOLDINGS
     # =========================================================
 
     all_holdings: list[HoldingResponse] = []
@@ -225,6 +207,15 @@ def get_dashboard_summary(
                 profit_loss_percent=profit_loss_percent,
             )
         )
+
+    # =========================================================
+    # 9. TOTAL INVESTED
+    # =========================================================
+
+    total_invested = sum(
+        holding.invested
+        for holding in all_holdings
+    )
 
     # =========================================================
     # 10. CURRENT VALUE
