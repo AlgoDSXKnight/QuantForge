@@ -13,11 +13,13 @@ from app.schemas.portfolio import (
     PortfolioUpdate,
     PortfolioHolding,
 )
+from app.schemas.dashboard import PortfolioPerformanceSummary
 from app.services.market_service import get_current_price
 from app.services.portfolio_calculation_service import (
     calculate_holdings,
     calculate_portfolio_totals,
 )
+
 
 def _get_user_portfolio(
     db: Session,
@@ -42,6 +44,7 @@ def _get_user_portfolio(
         )
 
     return portfolio
+
 
 def create_portfolio(
     db: Session,
@@ -190,6 +193,7 @@ def get_portfolio_summary(
         total_invested=totals["total_invested"],
     )
 
+
 def get_portfolio_holdings(
     db: Session,
     portfolio_id: int,
@@ -227,6 +231,7 @@ def get_portfolio_holdings(
         )
 
     return result
+
 
 def get_portfolio_performance(
     db: Session,
@@ -284,6 +289,96 @@ def get_portfolio_performance(
         profit_loss=profit_loss,
         profit_loss_percent=profit_loss_percent,
     )
+
+
+def get_portfolio_performance_summary(
+    db: Session,
+    current_user: User,
+) -> list[PortfolioPerformanceSummary]:
+    portfolios = (
+        db.query(Portfolio)
+        .filter(
+            Portfolio.user_id == current_user.id,
+        )
+        .all()
+    )
+
+    transactions = (
+        db.query(Transaction)
+        .join(Portfolio)
+        .filter(
+            Portfolio.user_id == current_user.id,
+        )
+        .order_by(
+            Transaction.transaction_date,
+            Transaction.id,
+        )
+        .all()
+    )
+
+    transactions_by_portfolio: dict[
+        int,
+        list[Transaction],
+    ] = {}
+
+    for transaction in transactions:
+        portfolio_id = transaction.portfolio_id
+
+        transactions_by_portfolio.setdefault(
+            portfolio_id,
+            [],
+        ).append(transaction)
+
+    result: list[PortfolioPerformanceSummary] = []
+
+    for portfolio in portfolios:
+        portfolio_transactions = transactions_by_portfolio.get(
+            portfolio.id,
+            [],
+        )
+
+        holdings = calculate_holdings(
+            portfolio_transactions
+        )
+
+        invested = 0.0
+        current_value = 0.0
+
+        for asset, data in holdings.items():
+            quantity = data["quantity"]
+            asset_invested = data["invested"]
+
+            if quantity <= 0:
+                continue
+
+            invested += asset_invested
+
+            current_price = get_current_price(asset)
+
+            current_value += (
+                quantity * current_price
+            )
+
+        profit_loss = current_value - invested
+
+        profit_loss_percent = (
+            (profit_loss / invested) * 100
+            if invested > 0
+            else 0.0
+        )
+
+        result.append(
+            PortfolioPerformanceSummary(
+                portfolio_id=portfolio.id,
+                portfolio_name=portfolio.name,
+                invested=invested,
+                current_value=current_value,
+                profit_loss=profit_loss,
+                profit_loss_percent=profit_loss_percent,
+            )
+        )
+
+    return result
 
 
 def get_portfolio_allocation(
