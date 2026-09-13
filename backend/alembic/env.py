@@ -24,7 +24,8 @@ from app.database.base import Base
 from app.models.user import User
 from app.models.portfolio import Portfolio
 from app.models.transaction import Transaction
-
+from app.models.instrument import Instrument
+from app.models.historical_price import HistoricalPrice
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
