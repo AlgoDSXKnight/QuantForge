@@ -7,18 +7,21 @@ from app.pricing.historical_option_chain import (
 
 
 def _parse_date(value: Any) -> date:
-    if isinstance(value, date):
-        return value
-
     if isinstance(value, datetime):
         return value.date()
 
+    if isinstance(value, date):
+        return value
+
     if not isinstance(value, str):
-        raise ValueError("Date value must be a string or date.")
+        raise ValueError(
+            "Date value must be a string or date."
+        )
 
     value = value.strip()
 
     formats = (
+        "%d-%b-%Y %H:%M:%S",
         "%d-%b-%Y",
         "%d-%b-%y",
         "%Y-%m-%d",
